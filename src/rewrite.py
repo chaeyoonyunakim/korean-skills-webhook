@@ -20,9 +20,13 @@ from .features.patterns import S1_PATTERNS, S2_RATE_PATTERNS, find_pattern_hits
 from .models import RewriteResult, RewriteSuggestion, ScoreReport, SentenceSelection
 
 DEFAULT_REWRITE_THRESHOLD = 40.0
-# Model is read at call time so GEMINI_MODEL in .env takes effect after load_dotenv().
 _GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+def _redact(text: str, key: str) -> str:
+    """Strip the API key from error strings so it is never logged or returned."""
+    return text.replace(key, "***") if key else text
 MAX_SUGGESTIONS = 5
 _MAX_SENTENCE_CHARS = 200
 _POLITE_ENDING = re.compile(r"[가-힣]니다\s*[.!?…]*\s*$")
@@ -265,7 +269,8 @@ def suggest_rewrites(
                     tokens_out=tokens_out,
                 )
         except Exception as exc:
-            print(f"rewrite: API error — {exc}")
-            return RewriteResult(skipped=True, skip_reason=f"API error: {exc}")
+            msg = _redact(str(exc), resolved_key)
+            print(f"rewrite: API error — {msg}")
+            return RewriteResult(skipped=True, skip_reason=f"API error: {msg}")
 
     return RewriteResult(skipped=True, skip_reason="unexpected retry exit")

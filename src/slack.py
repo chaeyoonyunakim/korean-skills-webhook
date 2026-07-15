@@ -45,16 +45,6 @@ def build_slack_message(
         f"(Korean ratio {report.korean_ratio:.0%}).{rewrite_summary} {DISCLAIMER}"
     )
 
-    firing = [f for f in report.features if f.contribution > 0][:TOP_FEATURES]
-    if firing:
-        feature_lines = "\n".join(
-            f"• *{f.name}*{f' [{f.severity}]' if f.severity else ''} — "
-            f"{f.contribution:.1f}/{f.max_contribution:.0f} pts: {f.evidence}"
-            for f in firing
-        )
-    else:
-        feature_lines = "• no features fired"
-
     fields = [
         {"type": "mrkdwn", "text": f"*Advisory score:*\n{report.score:.0f} / 100"},
         {"type": "mrkdwn", "text": f"*Korean-text ratio:*\n{report.korean_ratio:.0%}"},
@@ -71,16 +61,30 @@ def build_slack_message(
         },
         {"type": "section", "text": {"type": "mrkdwn", "text": f"<{post.url}|{title}>"}},
         {"type": "section", "fields": fields},
-        {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*Top signals:*\n{feature_lines}"},
-        },
-        {"type": "context", "elements": [{"type": "mrkdwn", "text": DISCLAIMER}]},
+        {"type": "divider"},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*Top signals*"}},
     ]
+
+    # One block per signal (blocks give vertical spacing between them);
+    # evidence findings render as quoted sub-lines under the bold title.
+    firing = [f for f in report.features if f.contribution > 0][:TOP_FEATURES]
+    for f in firing:
+        severity = f" `{f.severity}`" if f.severity else ""
+        title_line = (
+            f"• *{f.name}*{severity} — {f.contribution:.1f}/{f.max_contribution:.0f} pts"
+        )
+        items = f.evidence_items or [f.evidence]
+        quoted = "\n".join(f"> {item}" for item in items)
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"{title_line}\n{quoted}"}}
+        )
+    if not firing:
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": "_no signals fired_"}}
+        )
 
     if rewrite and rewrite.suggestions:
         shown = rewrite.suggestions[:MAX_REWRITE_BLOCKS]
-        blocks.append({"type": "divider"})
         blocks.append({
             "type": "section",
             "text": {"type": "mrkdwn", "text": "*Suggested revisions (optional)*"},
@@ -96,7 +100,13 @@ def build_slack_message(
             "type": "context",
             "elements": [{"type": "mrkdwn", "text": _REWRITE_NOTE}],
         })
-    elif rewrite and rewrite.skipped:
+
+    blocks += [
+        {"type": "divider"},
+        {"type": "context", "elements": [{"type": "mrkdwn", "text": DISCLAIMER}]},
+    ]
+
+    if rewrite and rewrite.skipped:
         blocks.append({
             "type": "context",
             "elements": [{"type": "mrkdwn", "text": f"Rewrite suggestions: {rewrite.skip_reason}."}],

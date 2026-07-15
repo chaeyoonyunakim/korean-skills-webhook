@@ -22,7 +22,7 @@ from src.rewrite import (
     select_sentences,
     suggest_rewrites,
 )
-from src.slack import build_slack_message
+from src.slack import _REWRITE_NOTE, build_slack_message
 
 
 # ---------------------------------------------------------------------------
@@ -236,10 +236,13 @@ def _post() -> PostText:
     return PostText(url="https://example.com/p", title="테스트", text="본문")
 
 
-def test_slack_no_rewrite_no_extra_blocks():
+def test_slack_no_rewrite_no_suggestion_blocks():
     msg = build_slack_message(_post(), _report())
-    types = [b["type"] for b in msg.blocks]
-    assert "divider" not in types
+    all_text = " ".join(
+        b.get("text", {}).get("text", "") for b in msg.blocks
+    )
+    assert "Suggested revisions" not in all_text
+    assert _REWRITE_NOTE not in all_text
 
 
 def test_slack_skipped_adds_footer_context():

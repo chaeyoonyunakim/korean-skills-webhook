@@ -146,14 +146,12 @@ def extract(sentences: list[str]) -> FeatureResult:
     if hits:
         worst = min(hits, key=lambda h: h.severity).severity  # S1 < S2 < S3
 
-    if hits:
-        evidence = "; ".join(
-            f"[{h.severity}] {h.pattern_name} ×{h.count}"
-            + (f" (e.g. {h.examples[0]})" if h.examples else "")
-            for h in hits
-        )
-    else:
-        evidence = "no tell-tale patterns fired"
+    items = [
+        f"[{h.severity}] {h.pattern_name} ×{h.count}"
+        + (f" (e.g. {h.examples[0]})" if h.examples else "")
+        for h in hits
+    ]
+    evidence = "; ".join(items) if items else "no tell-tale patterns fired"
 
     return FeatureResult(
         name="pattern_tells",
@@ -161,4 +159,5 @@ def extract(sentences: list[str]) -> FeatureResult:
         max_contribution=WEIGHT,
         severity=worst,
         evidence=evidence,
+        evidence_items=items,
     )

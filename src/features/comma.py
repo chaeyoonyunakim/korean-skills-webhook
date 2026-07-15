@@ -97,17 +97,18 @@ def extract(sentences: list[str]) -> FeatureResult:
         + context_score * 5.0
     )
 
-    evidence = (
+    items = [
         f"commas in {inclusion_rate:.0%} of sentences "
-        f"(human ≈{HUMAN_INCLUSION_RATE:.0%}, LLM ≈{LLM_INCLUSION_RATE:.0%}); "
-        f"{per_sentence:.2f} commas/sentence"
-    )
+        f"(human ≈{HUMAN_INCLUSION_RATE:.0%}, LLM ≈{LLM_INCLUSION_RATE:.0%})",
+        f"{per_sentence:.2f} commas/sentence",
+    ]
     if total_commas >= _MIN_COMMAS_FOR_SHAPE_SIGNALS:
-        evidence += f"; {len(context_pairs)}/{total_commas} distinct POS contexts"
+        items.append(f"{len(context_pairs)}/{total_commas} distinct POS contexts")
 
     return FeatureResult(
         name="comma_usage",
         contribution=round(min(contribution, WEIGHT), 2),
         max_contribution=WEIGHT,
-        evidence=evidence,
+        evidence="; ".join(items),
+        evidence_items=items,
     )

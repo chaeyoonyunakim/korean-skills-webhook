@@ -58,6 +58,9 @@ class FeatureResult(BaseModel):
     max_contribution: float
     severity: Optional[Severity] = None
     evidence: str
+    # Same evidence split into one item per finding, for renderers (Slack)
+    # that want line breaks; empty means "use `evidence` as a single item".
+    evidence_items: list[str] = Field(default_factory=list)
 
 
 class ScoreReport(BaseModel):

@@ -40,11 +40,22 @@ def test_disclaimer_block_present():
 
 def test_top_three_features_only():
     msg = build_slack_message(PostText(url="u", title="t", text=""), _report())
-    signals = next(
-        b["text"]["text"] for b in msg.blocks if b.get("text", {}).get("text", "").startswith("*Top signals:*")
+    all_text = "\n".join(
+        b["text"]["text"] for b in msg.blocks if b.get("text", {}).get("type") == "mrkdwn"
     )
-    assert "comma_usage" in signals and "[S1]" in signals
-    assert "word_spacing" not in signals  # 4th feature is cut
+    assert "comma_usage" in all_text and "`S1`" in all_text
+    assert "word_spacing" not in all_text  # 4th feature is cut
+
+
+def test_each_signal_gets_own_block_with_quoted_evidence():
+    msg = build_slack_message(PostText(url="u", title="t", text=""), _report())
+    signal_blocks = [
+        b for b in msg.blocks
+        if b.get("text", {}).get("type") == "mrkdwn" and b["text"]["text"].startswith("• *")
+    ]
+    assert len(signal_blocks) == 3
+    assert all("\n> " in b["text"]["text"] for b in signal_blocks)
+    assert sum(1 for b in msg.blocks if b["type"] == "divider") == 2
 
 
 def test_post_without_webhook_env_raises(monkeypatch):

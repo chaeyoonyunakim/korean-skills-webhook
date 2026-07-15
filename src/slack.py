@@ -11,7 +11,7 @@ import os
 
 import requests
 
-from .models import PostText, ScoreReport, SlackMessage
+from .models import PostText, RewriteResult, ScoreReport, SlackMessage
 
 DISCLAIMER = (
     "⚠️ Advisory flag only — human review required. AI detectors have known "
@@ -19,25 +19,31 @@ DISCLAIMER = (
 )
 
 TOP_FEATURES = 3
+MAX_REWRITE_BLOCKS = 5
+_REWRITE_NOTE = (
+    "Suggestions are optional — accept, edit, or ignore each one. "
+    "The author's voice takes priority."
+)
 
 
-def build_slack_message(post: PostText, report: ScoreReport) -> SlackMessage:
+def _trunc(text: str, limit: int = 200) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def build_slack_message(
+    post: PostText,
+    report: ScoreReport,
+    rewrite: RewriteResult | None = None,
+) -> SlackMessage:
     """Assemble Block Kit blocks plus the mandatory plain-text fallback."""
     title = post.title or post.url
+    rewrite_summary = ""
+    if rewrite and rewrite.suggestions:
+        rewrite_summary = f" {len(rewrite.suggestions)} rewrite suggestion(s) included."
     text_fallback = (
         f"Korean AI-tone advisory for '{title}': score {report.score:.0f}/100 "
-        f"(Korean ratio {report.korean_ratio:.0%}). {DISCLAIMER}"
+        f"(Korean ratio {report.korean_ratio:.0%}).{rewrite_summary} {DISCLAIMER}"
     )
-
-    firing = [f for f in report.features if f.contribution > 0][:TOP_FEATURES]
-    if firing:
-        feature_lines = "\n".join(
-            f"• *{f.name}*{f' [{f.severity}]' if f.severity else ''} — "
-            f"{f.contribution:.1f}/{f.max_contribution:.0f} pts: {f.evidence}"
-            for f in firing
-        )
-    else:
-        feature_lines = "• no features fired"
 
     fields = [
         {"type": "mrkdwn", "text": f"*Advisory score:*\n{report.score:.0f} / 100"},
@@ -55,12 +61,57 @@ def build_slack_message(post: PostText, report: ScoreReport) -> SlackMessage:
         },
         {"type": "section", "text": {"type": "mrkdwn", "text": f"<{post.url}|{title}>"}},
         {"type": "section", "fields": fields},
-        {
+        {"type": "divider"},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*Top signals*"}},
+    ]
+
+    # One block per signal (blocks give vertical spacing between them);
+    # evidence findings render as quoted sub-lines under the bold title.
+    firing = [f for f in report.features if f.contribution > 0][:TOP_FEATURES]
+    for f in firing:
+        severity = f" `{f.severity}`" if f.severity else ""
+        title_line = (
+            f"• *{f.name}*{severity} — {f.contribution:.1f}/{f.max_contribution:.0f} pts"
+        )
+        items = f.evidence_items or [f.evidence]
+        quoted = "\n".join(f"> {item}" for item in items)
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"{title_line}\n{quoted}"}}
+        )
+    if not firing:
+        blocks.append(
+            {"type": "section", "text": {"type": "mrkdwn", "text": "_no signals fired_"}}
+        )
+
+    if rewrite and rewrite.suggestions:
+        shown = rewrite.suggestions[:MAX_REWRITE_BLOCKS]
+        blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*Top signals:*\n{feature_lines}"},
-        },
+            "text": {"type": "mrkdwn", "text": "*Suggested revisions (optional)*"},
+        })
+        for s in shown:
+            body = (
+                f"*Before:* {_trunc(s.original)}\n"
+                f"*After:* {_trunc(s.revised)}\n"
+                f"*Why:* {s.reason} (`{s.pattern_id}`)"
+            )
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body}})
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": _REWRITE_NOTE}],
+        })
+
+    blocks += [
+        {"type": "divider"},
         {"type": "context", "elements": [{"type": "mrkdwn", "text": DISCLAIMER}]},
     ]
+
+    if rewrite and rewrite.skipped:
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": f"Rewrite suggestions: {rewrite.skip_reason}."}],
+        })
+
     return SlackMessage(text=text_fallback, blocks=blocks)
 
 

@@ -27,5 +27,10 @@ def ai_sentences() -> list[str]:
 
 
 @pytest.fixture(scope="session")
+def ai_toned_sentences() -> list[str]:
+    return _sentences("ai_toned_ko.txt")
+
+
+@pytest.fixture(scope="session")
 def fixtures_dir() -> Path:
     return FIXTURES

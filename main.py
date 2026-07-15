@@ -23,7 +23,8 @@ if hasattr(sys.stdout, "reconfigure"):
 from src.dedupe import DEFAULT_SEEN_FILE, load_seen, save_seen
 from src.extract import extract_post_text
 from src.fetch_feed import DEFAULT_FEED_URL, fetch_feed
-from src.models import ScoreReport
+from src.models import PostText, ScoreReport
+from src.rewrite import suggest_rewrites
 from src.scorer import korean_ai_score
 from src.segment import segment_korean
 from src.slack import DISCLAIMER, build_slack_message, post_to_slack
@@ -67,14 +68,14 @@ def _print_report(title: str, report: ScoreReport) -> None:
     print(f"  {DISCLAIMER}")
 
 
-def process_post(source: str, dry_run: bool) -> ScoreReport:
-    """Run one post through the full pipeline."""
-    post = extract_post_text(source)
+def _run_pipeline(
+    post: PostText, dry_run: bool, force_rewrite: bool
+) -> ScoreReport:
     seg = segment_korean(post)
     report = korean_ai_score(seg)
-    _print_report(post.title or source, report)
-
-    message = build_slack_message(post, report)
+    _print_report(post.title or post.url, report)
+    rewrite = suggest_rewrites(seg.sentences, report, force=force_rewrite)
+    message = build_slack_message(post, report, rewrite)
     if dry_run:
         print("\n--dry-run: Slack payload JSON --")
         print(json.dumps({"text": message.text, "blocks": message.blocks}, ensure_ascii=False, indent=2))
@@ -84,8 +85,25 @@ def process_post(source: str, dry_run: bool) -> ScoreReport:
     return report
 
 
+def process_post(source: str, dry_run: bool, force_rewrite: bool = False) -> ScoreReport:
+    """Run one post (URL or local HTML) through the full pipeline."""
+    return _run_pipeline(extract_post_text(source), dry_run, force_rewrite)
+
+
+def process_text_file(path: str, dry_run: bool, force_rewrite: bool = False) -> ScoreReport:
+    """Run a plain-text file through the pipeline (bypasses HTML extraction)."""
+    content = Path(path).read_text(encoding="utf-8")
+    post = PostText(url=path, title=Path(path).stem, text=content)
+    return _run_pipeline(post, dry_run, force_rewrite)
+
+
 def run_url(args: argparse.Namespace) -> int:
-    process_post(args.url, args.dry_run)
+    process_post(args.url, args.dry_run, args.force_rewrite)
+    return 0
+
+
+def run_text_file(args: argparse.Namespace) -> int:
+    process_text_file(args.text_file, args.dry_run, args.force_rewrite)
     return 0
 
 
@@ -107,7 +125,7 @@ def run_feed(args: argparse.Namespace) -> int:
 
     print(f"feed: {len(entries)} entries, {len(new_entries)} new")
     for entry in new_entries:
-        process_post(entry.url, args.dry_run)
+        process_post(entry.url, args.dry_run, args.force_rewrite)
         seen.add(entry.url)
     if new_entries and not args.dry_run:
         save_seen(seen, args.seen_file)
@@ -119,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--url", help="post URL or local HTML file to score")
     mode.add_argument("--feed", action="store_true", help="scan the Atom feed for new posts")
+    mode.add_argument("--text-file", metavar="PATH", help="plain-text file to score (bypasses HTML extraction)")
     parser.add_argument("--feed-url", default=DEFAULT_FEED_URL, help="Atom feed URL")
     parser.add_argument("--seen-file", default=DEFAULT_SEEN_FILE, help="dedupe store path")
     parser.add_argument(
@@ -129,13 +148,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="on first feed run, process all historical entries instead of seeding the seen-store",
     )
+    parser.add_argument(
+        "--force-rewrite",
+        action="store_true",
+        help="run the Gemini rewrite stage regardless of advisory score (for testing)",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     args = build_parser().parse_args(argv)
-    route = run_feed if args.feed else run_url
+    if args.feed:
+        route = run_feed
+    elif args.text_file:
+        route = run_text_file
+    else:
+        route = run_url
     try:
         return route(args)
     except RuntimeError as exc:

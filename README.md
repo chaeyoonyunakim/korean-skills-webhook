@@ -93,6 +93,12 @@ the top-of-hour cron rush) and on manual `workflow_dispatch`. It restores
 `seen_posts.json` from the Actions cache, scans the feed, and posts advisories
 for new posts using the `SLACK_WEBHOOK_URL` repo secret.
 
+The very first feed run only seeds `seen_posts.json` (no notifications), and
+later runs notify solely about posts that are new since the seed. To send an
+advisory for a specific existing post, trigger the workflow manually and fill
+in the optional **url** input — that scores the single post and posts its
+advisory, bypassing the dedupe.
+
 ## Ethics & known limitations
 
 This is an experiment, currently pointed at a **human-written** post as a

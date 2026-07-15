@@ -15,6 +15,11 @@ import os
 import sys
 from pathlib import Path
 
+# Ensure Korean characters print correctly on Windows consoles (cp1252 → utf-8).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from src.dedupe import DEFAULT_SEEN_FILE, load_seen, save_seen
 from src.extract import extract_post_text
 from src.fetch_feed import DEFAULT_FEED_URL, fetch_feed

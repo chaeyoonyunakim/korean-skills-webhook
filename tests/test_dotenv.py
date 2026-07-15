@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from main import load_dotenv
 
 
@@ -9,12 +11,8 @@ def test_loads_values_and_strips_quotes(tmp_path, monkeypatch):
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("OTHER", raising=False)
     load_dotenv(env)
-    import os
-
     assert os.environ["SLACK_WEBHOOK_URL"] == "https://hooks.example/x"
     assert os.environ["OTHER"] == "plain"
-    monkeypatch.delenv("SLACK_WEBHOOK_URL")
-    monkeypatch.delenv("OTHER")
 
 
 def test_real_environment_wins(tmp_path, monkeypatch):
@@ -22,8 +20,6 @@ def test_real_environment_wins(tmp_path, monkeypatch):
     env.write_text("SLACK_WEBHOOK_URL=from-file\n")
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "from-env")
     load_dotenv(env)
-    import os
-
     assert os.environ["SLACK_WEBHOOK_URL"] == "from-env"
 
 

@@ -150,6 +150,9 @@ activemq-data/
 # Environments
 .env
 .envrc
+
+# Local feed-dedupe state (persisted via actions/cache in CI)
+seen_posts.json
 .venv
 env/
 venv/

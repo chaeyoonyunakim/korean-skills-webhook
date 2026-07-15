@@ -1,0 +1,4 @@
+kiwipiepy>=0.20
+pydantic>=2
+beautifulsoup4>=4.12
+requests>=2.31

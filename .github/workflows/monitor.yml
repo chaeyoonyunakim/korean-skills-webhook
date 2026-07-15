@@ -1,0 +1,48 @@
+name: Korean AI-tone feed monitor
+
+on:
+  schedule:
+    # Odd offset to avoid the top-of-hour GitHub cron rush. Best-effort:
+    # scheduled runs can be delayed or skipped under load.
+    - cron: "17 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Best-effort dedupe state. Cache keys are immutable, so each run
+      # saves under a new key and restores the most recent one; eviction
+      # (~7 days unused) may cause a repeat notification.
+      - name: Restore seen-posts state
+        uses: actions/cache/restore@v4
+        with:
+          path: seen_posts.json
+          key: seen-posts-${{ github.run_id }}
+          restore-keys: |
+            seen-posts-
+
+      - name: Scan feed and notify
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python main.py --feed
+
+      - name: Save seen-posts state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: seen_posts.json
+          key: seen-posts-${{ github.run_id }}

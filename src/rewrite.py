@@ -20,11 +20,9 @@ from .features.patterns import S1_PATTERNS, S2_RATE_PATTERNS, find_pattern_hits
 from .models import RewriteResult, RewriteSuggestion, ScoreReport, SentenceSelection
 
 DEFAULT_REWRITE_THRESHOLD = 40.0
-GEMINI_MODEL = "gemini-2.5-flash"
-_GEMINI_ENDPOINT = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{GEMINI_MODEL}:generateContent"
-)
+# Model is read at call time so GEMINI_MODEL in .env takes effect after load_dotenv().
+_GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
+_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 MAX_SUGGESTIONS = 5
 _MAX_SENTENCE_CHARS = 200
 _POLITE_ENDING = re.compile(r"[가-힣]니다\s*[.!?…]*\s*$")
@@ -185,8 +183,10 @@ def build_prompt(selections: list[SentenceSelection]) -> str:
 
 
 def _call_gemini_raw(prompt: str, api_key: str, timeout: int = 30) -> dict:
+    model = os.environ.get("GEMINI_MODEL", _GEMINI_DEFAULT_MODEL)
+    endpoint = f"{_GEMINI_BASE}/{model}:generateContent"
     resp = requests.post(
-        _GEMINI_ENDPOINT,
+        endpoint,
         params={"key": api_key},
         json={
             "contents": [{"parts": [{"text": prompt}]}],

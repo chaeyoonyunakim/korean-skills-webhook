@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,22 @@ from src.segment import segment_korean
 from src.slack import DISCLAIMER, build_slack_message, post_to_slack
 
 HIGH_SCORE_THRESHOLD = 50.0
+
+
+def load_dotenv(path: str | Path = ".env") -> None:
+    """Minimal stdlib .env loader: KEY=VALUE lines, # comments, optional
+    quotes. Real environment variables always win over .env values."""
+    p = Path(path)
+    if not p.exists():
+        return
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip("'\"")
+        if key:
+            os.environ.setdefault(key, value)
 
 
 def _print_report(title: str, report: ScoreReport) -> None:
@@ -111,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv()
     args = build_parser().parse_args(argv)
     route = run_feed if args.feed else run_url
     try:

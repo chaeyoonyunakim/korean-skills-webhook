@@ -48,6 +48,10 @@ pip install -r requirements.txt        # or requirements-dev.txt for tests
 cp .env.example .env                   # fill in SLACK_WEBHOOK_URL
 ```
 
+`main.py` auto-loads `.env` from the working directory (simple KEY=VALUE
+lines; real environment variables take precedence), so no export is needed
+for local runs.
+
 ### Creating the Slack incoming webhook
 
 1. Go to <https://api.slack.com/apps> → **Create New App** → *From scratch*.

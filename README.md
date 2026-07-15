@@ -16,7 +16,7 @@ state between stages — no agent frameworks:
 
 ```
 fetch_feed → extract_post_text → segment_korean → korean_ai_score
-    → build_slack_message → post_to_slack
+    → suggest_rewrites (optional) → build_slack_message → post_to_slack
 ```
 
 The detector reimplements linguistic feature *ideas* from
@@ -45,7 +45,7 @@ Python 3.11+, CPU-only (kiwipiepy ships prebuilt wheels).
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # or requirements-dev.txt for tests
-cp .env.example .env                   # fill in SLACK_WEBHOOK_URL
+cp .env.example .env                   # fill in SLACK_WEBHOOK_URL and optionally GEMINI_API_KEY
 ```
 
 `main.py` auto-loads `.env` from the working directory (simple KEY=VALUE
@@ -74,10 +74,40 @@ python main.py --feed
 
 # First feed run seeds seen_posts.json without notifying; force processing with
 python main.py --feed --backfill
+
+# Test the rewrite stage against the AI-toned fixture (no network Slack post, forces Gemini call)
+python main.py --text-file tests/fixtures/ai_toned_ko.txt --dry-run --force-rewrite
 ```
 
 Console output shows the extraction stats, the 0–100 advisory score, and the
 per-feature contributions with evidence.
+
+## Rewrite suggestions (optional)
+
+When `GEMINI_API_KEY` is set and the advisory score is at or above `REWRITE_THRESHOLD`
+(default 40), the pipeline selects the 3–5 most signal-dense Korean sentences and
+sends them in a single Gemini (`gemini-2.5-flash`) call asking for minimal, targeted
+rewrites. The Slack message gains a "Suggested revisions (optional)" section with
+before/after/why for each suggestion.
+
+Key design choices:
+
+- **One API call per run.** All selected sentences are batched into a single prompt
+  (free-tier friendly). Token counts are logged to the console.
+- **Sentence selection order.** S1 pattern hits (translation-ese, double passive,
+  formulaic closers) → S2 hits (rate-gated overuse, uniform endings) → sentences
+  with comma density above the LLM anchor, scaled proportionally to average sentence
+  length → fallback by raw comma count.
+- **Suggestions are sentence-level and advisory.** The author cherry-picks which, if
+  any, to accept. The framing note in every Slack message makes this explicit.
+- **Graceful degradation.** JSON parse errors retry once with a stricter prompt. Any
+  subsequent failure — or a missing API key — skips the stage silently and adds a
+  one-line footer to the Slack message instead of crashing the pipeline.
+- **No new runtime dependency.** The Gemini call uses `requests` (already a
+  dependency); no `google-genai` SDK is added.
+
+To enable: add `GEMINI_API_KEY` to `.env` locally and to the repo secret
+`GEMINI_API_KEY` in Settings → Secrets → Actions.
 
 ## Tests
 

@@ -72,6 +72,35 @@ class ScoreReport(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class SentenceSelection(BaseModel):
+    """One sentence chosen for the Gemini rewrite prompt."""
+
+    sentence: str
+    pattern_id: str
+    pattern_description: str
+    fix_hint: str
+    tier: int  # 1=S1 hit, 2=S2/uniform-politeness hit, 3=comma density, 4=fallback
+
+
+class RewriteSuggestion(BaseModel):
+    """One validated suggestion parsed from the Gemini response."""
+
+    original: str
+    revised: str
+    reason: str
+    pattern_id: str
+
+
+class RewriteResult(BaseModel):
+    """Output of the rewrite stage; always present, skipped when not run."""
+
+    suggestions: list[RewriteSuggestion] = Field(default_factory=list)
+    skipped: bool = False
+    skip_reason: str = ""
+    tokens_in: int = 0
+    tokens_out: int = 0
+
+
 class SlackMessage(BaseModel):
     """Block Kit payload plus mandatory plain-text fallback."""
 

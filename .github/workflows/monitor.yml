@@ -45,6 +45,7 @@ jobs:
       - name: Scan feed (or score a single post) and notify
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           POST_URL: ${{ inputs.url }}
         run: |
           if [ -n "$POST_URL" ]; then

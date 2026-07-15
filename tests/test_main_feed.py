@@ -29,7 +29,7 @@ def test_second_run_processes_only_new(tmp_path, monkeypatch):
     seen_file.write_text(json.dumps(["https://example.com/one/"]))
     processed: list[str] = []
     monkeypatch.setattr(cli, "fetch_feed", lambda url: _entries())
-    monkeypatch.setattr(cli, "process_post", lambda src, dry: processed.append(src))
+    monkeypatch.setattr(cli, "process_post", lambda src, dry, force=False: processed.append(src))
     cli.main(["--feed", "--seen-file", str(seen_file)])
     assert processed == ["https://example.com/two/"]
     assert set(json.loads(seen_file.read_text())) == {e.url for e in _entries()}

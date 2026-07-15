@@ -5,7 +5,14 @@ on:
     # Odd offset to avoid the top-of-hour GitHub cron rush. Best-effort:
     # scheduled runs can be delayed or skipped under load.
     - cron: "17 9 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      url:
+        description: >-
+          Optional: score this single post URL (and post its advisory)
+          instead of scanning the feed. Bypasses seen-posts dedupe.
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -35,10 +42,16 @@ jobs:
           restore-keys: |
             seen-posts-
 
-      - name: Scan feed and notify
+      - name: Scan feed (or score a single post) and notify
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python main.py --feed
+          POST_URL: ${{ inputs.url }}
+        run: |
+          if [ -n "$POST_URL" ]; then
+            python main.py --url "$POST_URL"
+          else
+            python main.py --feed
+          fi
 
       - name: Save seen-posts state
         if: always()
